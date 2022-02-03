@@ -8,47 +8,60 @@ import (
 )
 
 func main() {
+	// в этой строковой переменной только заглавные буквы т.к. они были в задании
 	uppercase := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+	// переводим все в руны. С рунами легче работать чем со строками или байтами из строк
 	u := []rune(uppercase)
+
+	// длина всех букв латинскогог алфавита. Будет равна 26
 	l := len(u)
+
+	// создаем строковый канал с емкостью для в 2 раза больше чем длина т.к. на каждую букву будет приходится цифра
 	res := make(chan string, l*2)
+
+	// создаем группу ожидания
 	wg := new(sync.WaitGroup)
+
+	// создаем мютекс
 	mu := new(sync.Mutex)
 
+	// итерируемся с шагом 2
 	for i := 0; i < l+2; i += 2 {
-		wg.Add(1)
-		go func(ticker int, result chan string) {
-			defer wg.Done()
-			mu.Lock()
-			var buffer bytes.Buffer
-			d1 := strconv.Itoa(ticker + 1)
-			d2 := strconv.Itoa(ticker + 2)
-			buffer.WriteString(d1)
+		wg.Add(1)                                 // добавляем первую горутину в группу ожидания
+		go func(ticker int, result chan string) { // обьявляем ананимную функцию и сразу выполняем ее как горутину. Функция будет писать цифры в результирующий канал
+			defer wg.Done()                // говорим завершить группу в будушем
+			mu.Lock()                      // ставим блокировку на выполнение горутины
+			var buffer bytes.Buffer        // создаем переменную буфер т.к. через буфер эффективнее всего конкатенировать строки
+			d1 := strconv.Itoa(ticker + 1) // конвертируем тик+1 в строку
+			d2 := strconv.Itoa(ticker + 2) // конвертируем тик+2 в строку
+			buffer.WriteString(d1)         // дописываем в буфер значения
 			buffer.WriteString(d2)
-			result <- fmt.Sprint(buffer.String())
-			mu.Unlock()
+			result <- fmt.Sprint(buffer.String()) // отправляем в результирующий канал значения
+			mu.Unlock()                           // снимаем блокировку
 		}(i, res)
-		wg.Wait()
-		wg.Add(1)
-		go func(ticker int, result chan string, sequence []rune) {
+		wg.Wait()                                                  // дожидаемся когда первая горутина сделает свои дела
+		wg.Add(1)                                                  // добавляем в группу ожидания еще одну горутину
+		go func(ticker int, result chan string, sequence []rune) { // эта анонимная функция-горутина будет посылать в канал буквы
 			defer wg.Done()
 			mu.Lock()
-			if ticker < l {
-				result <- string(sequence[ticker])
+			if ticker < l { // тут момент в том что длина последовательности у нас 26 а нумерация элементов в слайсе начинается с нуля. Поэтому ставим строго меньше.
+				result <- string(sequence[ticker]) // посылаем буквы
 				result <- string(sequence[ticker+1])
 			}
 			mu.Unlock()
 		}(i, res, u)
-		wg.Wait()
+		wg.Wait() // дожидаемся выполнения второй горутины
 	}
-	close(res)
-	for {
-		val, ok := <-res
-		if ok == false {
+	close(res) // закрываем канал для результата
+
+	for { // в бесконечном цикле
+		val, ok := <-res // вычитываем значения из канала для результата
+		if ok == false { // если значения нет до выходим из цикла
 			fmt.Printf("%v", val)
 			break // exit break loop
 		} else {
-			fmt.Printf("%v", val)
+			fmt.Printf("%v", val) // пока есть значения в канале печатаем их в одну строку
 		}
 	}
 }
